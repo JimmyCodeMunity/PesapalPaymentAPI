@@ -81,10 +81,67 @@ const getIpnLists = async (accessToken) => {
   };
   
 
-const handleCallback = async (req, res, response) => {
-  console.log(response.data);
-  res.send("callback active");
+// const handleCallback = async (req, res, response) => {
+  
+//   const resquestOptions = {
+//     method :"GET",
+//     headers:{
+//       Authorization:`Bearer ${accessToken}`,
+//       "Content-Type": "application/json",
+//       Accept: "application/json",
+//     }
+//   }
+//   const response = await axios.get(`https://cybqa.pesapal.com/pesapalv3/api/Transactions/GetTransactionStatus?orderTrackingId=xxxxxxxxxxxx`)
+//   const callbackData = response;
+//   console.log("C2B Callback Data:", callbackData);
+//   console.log(response.data);
+//   res.send("callback active");
+// };
+
+const handleCallback = async (req, res) => {
+  const orderTrackingId = req.query.OrderTrackingId; // Assuming orderTrackingId is passed as a query parameter
+  if (!orderTrackingId) {
+    res.status(400).send("Order Tracking ID is required");
+    return;
+  }
+
+  try {
+    const accessToken = await getToken(); // Get the access token
+    const transactionStatus = await getTransactionStatus(accessToken, orderTrackingId);
+
+    console.log("Transaction Status:", transactionStatus);
+
+    // Process the transaction status here
+    // e.g., update the order status in your database
+
+    res.send("Callback processed successfully");
+  } catch (error) {
+    console.error("Error processing callback:", error);
+    res.status(500).send("Internal Server Error");
+  }
 };
+
+
+const getTransactionStatus = async (accessToken, orderTrackingId) => {
+  try {
+    const url = `https://cybqa.pesapal.com/pesapalv3/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`;
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    const response = await axios.get(url, { headers });
+
+    // The response contains the transaction status
+    console.log(response.data)
+    return response.data;
+  } catch (error) {
+    console.error("Error getting transaction status:", error);
+    throw error;
+  }
+};
+
 
 const getRandomNumber = ()=>{
     return Math.floor(Math.random() * 1000000);
@@ -93,12 +150,21 @@ const getRandomNumber = ()=>{
 
 
 
-const orderDetails = {
+
+
+  // const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+//submit order request
+const submitOrderRequest = async (req,res) => {
+  
+  const {useremail} = req.body;
+  console.log("paying email",useremail)
+  const orderDetails = {
     id: getRandomNumber(), // Replace with your transaction ID
     currency: "KES", // Replace with your currency code
     amount: "1.00", // Replace with your amount
     description: "Order payment", // Replace with your description
-    email: "customer@example.com", // Replace with customer's email
+    email: useremail, // Replace with customer's email
     phone: "254112163919", // Replace with customer's phone number
     countryCode: "KE", // Replace with customer's country code
     firstName: "John", // Replace with customer's first name
@@ -111,11 +177,6 @@ const orderDetails = {
     postalCode: "00100", // Replace with customer's postal code
     zipCode: "00100", // Replace with customer's zip code
   };
-
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-//submit order request
-const submitOrderRequest = async () => {
     console.log(orderDetails);
     try {
       // Ensure you have the access token
@@ -146,7 +207,7 @@ const submitOrderRequest = async () => {
         callback_url: process.env.callback_url, // Callback URL for notifications
         notification_id:myipn_id,
         billing_address: {
-          email_address: orderDetails.email, // Customer's email address
+          email_address: useremail, // Customer's email address
           phone_number: orderDetails.phone, // Customer's phone number
           country_code: orderDetails.countryCode, // e.g., "KE"
           first_name: orderDetails.firstName, // Customer's first name
@@ -166,6 +227,8 @@ const submitOrderRequest = async () => {
   
       // Log the response data
       console.log("Order submitted successfully", response.data);
+      res.json(response.data);
+      console.log("redirect url",response.data.redirect_url)
       return response.data;
     } catch (error) {
       console.log("Error occurred while submitting order", error);
